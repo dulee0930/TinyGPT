@@ -17,6 +17,32 @@
 
 ---
 
+## 💡 자연어 대신 금융 데이터를 학습시키는 이론적 정당화
+
+GPT와 같은 자연어 처리(NLP) 기반 Transformer 모델을 이산화된 금융 데이터에 적용하는 것은 단순한 비유를 넘어 다음과 같은 강력한 수학적/이론적 정당성을 갖습니다.
+
+### 1) 시장의 '언어(Vocabulary)' 정의 및 이산화 (Market Vocabulary & Regularization)
+* **NLP 관점**: 자연어는 이미 알파벳이나 형태소 단위로 쪼개진 이산 토큰(Discrete Token)으로 구성되어 있으며, 이를 통해 복잡한 의미를 전달합니다.
+* **금융 관점**: 금융 시계열 데이터(주가, 거래량 등)는 본질적으로 연속적인 실수(Float) 형태이므로 잡음(Noise)이 매우 심합니다. 실수 값을 그대로 학습할 경우, 딥러닝 모델은 무의미한 미세 변동(Micro-fluctuations)에 과적합(Overfitting)되기 쉽습니다.
+* **정당화**: 추세, 모멘텀, RSI, 거래량, 변동성을 분위수(Quantile) 기준의 5단계(Quinary Bucket)로 **이산화(Discretization)**하고 이를 하나의 문자열 토큰(예: `T_FLAT|M5_NEU|...`)으로 결합함으로써, 시장의 잡음을 걸러내는 **강력한 정규화(Regularization) 효과**를 얻습니다. 이 과정은 연속형 정보의 핵심만 압축하여 **"시장의 이산적 언어(Vocabulary of the Market)"**를 구축하는 과정입니다.
+
+### 2) 시간적 경로 의존성과 어텐션 메커니즘 (Temporal Path-dependency & Attention)
+* **NLP 관점**: 문장에서 단어의 의미는 이전 문맥의 흐름(Context)에 따라 결정됩니다. 단순히 바로 앞 단어만 보고 예측하는 Bigram 모델은 한계가 분명합니다.
+* **금융 관점**: 효율적 시장 가설(EMH)의 약형 가설에 따르면 과거 주가 패턴으로 미래 주가를 예측할 수 없다고 하지만, 행동재무학 및 시장 마이크로스트럭처 관점에서 시장은 **추세 형성(Momentum), 반전(Mean-reversion), 변동성 전이(Volatility Clustering)** 등의 특성을 보이며 **경로 의존성(Path-dependency)**을 가집니다.
+* **정당화**: Transformer의 **Causal Self-Attention** 메커니즘은 과거 64일간의 문맥 창(`block_size=64`) 내에서 현재의 시장 상태와 유사한 패턴이나 국면(Regime)을 동적으로 조회(Query-Key Matching)하여 가중합합니다. 이를 통해 단순히 직전 거래일의 정보(1차 마르코프 가정)를 넘어, 과거 역사적 흐름 속에서 현재와 유의미한 연관성을 가지는 시점들에 주의(Attention)를 집중시켜 신호를 형성합니다.
+
+### 3) 비선형 요인 상호작용 (Non-linear Factor Interaction)
+* **NLP 관점**: 개별 단어 자체의 의미보다 단어들이 조합되어 문장을 이룰 때 풍부한 문맥적 맥락(Semantic Context)이 생겨납니다.
+* **금융 관점**: 단일 보조지표(예: RSI만 단독으로 보거나 변동성만 보는 것)로는 시장의 복잡한 국면을 설명하기 어렵습니다. 모멘텀이 상승세(`M5_POS`)이더라도 거래량이 급감(`VOL_LOW`)하거나 변동성이 매우 높으면(`RNG_HIGH`) 이는 추세 지속 신호가 아닌 단기 고점 신호일 수 있습니다.
+* **정당화**: Multi-Head Attention은 6가지 시장 지표가 결합된 다차원 토큰들 사이의 복합적인 상호작용과 시계열적 흐름을 다각도(Multi-Head)로 파악합니다. 전통적인 선형 회귀나 고정된 의사결정 나무(Decision Tree)가 포착하기 힘든 **고차원 비선형 지표 결합 패턴**을 효과적으로 학습할 수 있습니다.
+
+### 4) 인과적 마스킹을 통한 미래 정보 누수 방지 (Causal Masking & No Lookahead Bias)
+* **NLP 관점**: 디코더(Decoder) 기반 GPT 모델은 미래 단어를 미리 보고 현재 단어를 예측할 수 없도록 하삼각 마스크(Causal Mask)를 적용합니다.
+* **금융 관점**: 금융 예측에서 가장 빈번하게 발생하는 치명적인 오류는 미래의 정보가 학습 데이터에 침투하는 미래 참조 오류(Lookahead Bias/Data Leakage)입니다.
+* **정당화**: Causal Self-Attention의 하삼각 마스킹은 $t$ 시점의 예측이 오직 $0 \sim t$ 시점의 과거 시장 상태 토큰들만 참조할 수 있도록 엄격히 보장합니다. 이는 시계열 데이터의 인과 관계(Causal Relationship)를 깨뜨리지 않고 신경망을 병렬 학습시킬 수 있는 강력한 수학적 도구입니다.
+
+---
+
 ## 🛠️ 전체 파이프라인 구조
 
 ```mermaid
@@ -98,12 +124,65 @@ flowchart TD
      [Linear Classification Head] ➔ Logits (B, 3) (SELL/HOLD/BUY)
 ```
 
-### 모델 구성 클래스
-* **[Head](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L31-L38)**: 단일 인과적(Causal) 어텐션 헤드로, 미래 정보를 참조할 수 없도록 하삼각 마스킹(`tril`)을 적용합니다.
-* **[MultiHeadAttention](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L39-L43)**: 여러 개의 어텐션 헤드를 병렬 연산하고 합친 뒤 선형 투영합니다.
-* **[FeedForward](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L44-L48)**: $W_1 x + b_1 \rightarrow \text{ReLU} \rightarrow W_2 x + b_2$ 구조의 MLP 채널 정제망입니다.
-* **[Block](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L49-L51)**: Pre-LN 기반의 레이어 정규화와 어텐션, FFWD 및 잔차 연결을 조합한 디코더 블록입니다.
-* **[TinyGPTTradingSignal](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L52-L86)**: 위의 요소들을 취합하여 토큰/위치 임베딩을 거쳐 시퀀스 특징을 만들고, **시퀀스의 마지막 시점 은닉 벡터(`h[:, -1, :]`)**를 추출하여 3개의 출력 신호 점수로 매핑합니다.
+### 1) 상세 모델 구조 및 수학적 연산 흐름
+
+#### ① 토큰 및 위치 임베딩 (Token & Position Embeddings)
+* **입력 시퀀스**: $x = [x_1, x_2, \dots, x_T] \in \mathbb{R}^{B 	imes T}$ (여기서 $T = 	ext{block\_size} = 64$는 최근 64영업일의 시장 상태 토큰들입니다.)
+* **토큰 임베딩**: `nn.Embedding(vocab_size, emb_dim)`을 거쳐 각 이산 시장 상태 토큰을 $C(=96)$ 차원 벡터로 매핑합니다: $E_{tok}(x) \in \mathbb{R}^{B 	imes T 	imes C}$
+* **위치 임베딩**: 토큰의 시간적 순서 정보를 보존하기 위해 절대적 위치 임베딩 벡터를 더합니다: $E_{pos}(p) \in \mathbb{R}^{T 	imes C}$
+* **합산**: 두 임베딩의 합이 최초의 숨겨진 특징 벡터 $h_0$가 됩니다:
+  $$h_0 = E_{tok}(x) + E_{pos}(p) \in \mathbb{R}^{B 	imes T 	imes C}$$
+
+#### ② 인과적 멀티헤드 어텐션 (Causal Multi-Head Attention)
+* 각 블록 내의 어텐션 레이어는 $h \in \mathbb{R}^{B 	imes T 	imes C}$를 받아 쿼리($Q$), 키($K$), 값($V$)으로 선형 투영합니다:
+  $$Q = h W_Q, \quad K = h W_K, \quad V = h W_V \quad (W_Q, W_K, W_V \in \mathbb{R}^{C 	imes C})$$
+* 설정한 헤드 수($h_{num} = 4$)에 따라 채널을 분할하고 병렬적으로 scaled dot-product 어텐션을 계산합니다:
+  $$	ext{Attention}(Q, K, V) = 	ext{softmax}\left(rac{Q K^T}{\sqrt{d_k}} + Might) V$$
+  여기서 $d_k = C / h_{num} = 24$ 이며, $M$은 미래 시점 정보를 참조하지 못하게 차단하는 **인과적 마스크(Causal Mask)**입니다:
+  $$M_{ij} = egin{cases} 0 & (i \ge j) \ -\infty & (i < j) \end{cases}$$
+* 마스킹된 영역은 $	ext{softmax}$ 연산 시 가중치가 0이 되므로 정보가 미래에서 과거로 역류하는 것을 수학적으로 차단하여 미래 정보 누수(Lookahead Bias)를 방지합니다.
+* 어텐션 결과를 다시 채널 방향으로 접합(Concatenate) 후 최종 출력 선형 투영 $W_O \in \mathbb{R}^{C 	imes C}$를 통과시킵니다.
+
+#### ③ Pre-LN 트랜스포머 블록 구조 (Pre-LN Transformer Blocks)
+* 입력 벡터가 블록을 통과할 때 레이어 정규화(LayerNorm)를 잔차 연결(Residual Connection) 직전에 수행하는 Pre-LN 방식을 적용하여 심층 신경망의 안정적인 학습을 보장합니다:
+  $$	ilde{h}_l = h_{l-1} + 	ext{MHA}(	ext{LN}(h_{l-1}))$$
+  $$h_l = 	ilde{h}_l + 	ext{FFWD}(	ext{LN}(	ilde{h}_l))$$
+* 여기서 FeedForward 네트워크는 비선형 특징 채널 변환을 수행합니다:
+  $$	ext{FFWD}(y) = 	ext{ReLU}(y W_1 + b_1) W_2 + b_2 \quad (W_1 \in \mathbb{R}^{C 	imes 4C}, W_2 \in \mathbb{R}^{4C 	imes C})$$
+
+#### ④ 분류 헤드 및 최종 신호 매핑 (Classification Head)
+* **정보 압축**: 시퀀스 전체 위치의 특징을 활용하는 자연어 생성과 달리, 거래 예측에서는 64영업일 동안의 정보가 누적·압축된 **마지막 시점(Last Time-step)의 은닉 상태**만을 추출합니다:
+  $$h_{last} = h_{L}[:, -1, :] \in \mathbb{R}^{B 	imes C}$$
+* **선형 매핑**: $h_{last}$를 선형 레이어(`nn.Linear`)에 통과시켜 최종 3가지 거래 신호의 로그 확률(Logits)을 구합니다:
+  $$	ext{logits} = h_{last} W_{class} + b_{class} \in \mathbb{R}^{B 	imes 3} \quad (W_{class} \in \mathbb{R}^{C 	imes 3})$$
+* 이 Logits에 소프트맥스를 씌워 SELL (0), HOLD (1), BUY (2)에 대한 확률을 구합니다.
+
+---
+
+### 2) 모델 구성 클래스
+* **[Head](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L217-L247)**: 단일 인과적(Causal) 어텐션 헤드로, 미래 정보를 참조할 수 없도록 하삼각 마스킹(`tril`)을 적용합니다.
+* **[MultiHeadAttention](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L249-L266)**: 여러 개의 어텐션 헤드를 병렬 연산하고 합친 뒤 선형 투영합니다.
+* **[FeedForward](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L268-L282)**: $W_1 x + b_1 ightarrow 	ext{ReLU} ightarrow W_2 x + b_2$ 구조의 MLP 채널 정제망입니다.
+* **[Block](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L284-L298)**: Pre-LN 기반의 레이어 정규화와 어텐션, FFWD 및 잔차 연결을 조합한 디코더 블록입니다.
+* **[TinyGPTTradingSignal](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L300-L337)**: 위의 요소들을 취합하여 토큰/위치 임베딩을 거쳐 시퀀스 특징을 만들고, 시퀀스의 마지막 시점 은닉 벡터(`h[:, -1, :]`)를 추출하여 3개의 출력 신호 점수로 매핑합니다.
+
+---
+
+### 3) Notebook 06 (TinyGPT)과의 차이점 비교
+
+이 프로젝트의 `TinyGPTTradingSignal`은 `notebook_06.ipynb`에서 다루는 표준적인 문자 단위 GPT 디코더 모델을 모태로 하고 있으나, 풀고자 하는 문제의 정의와 도메인의 특성에 맞춰 아래와 같이 중요한 구조적/기능적 차이점을 지닙니다.
+
+| 비교 항목 | Notebook 06 (텍스트 생성 GPT) | TinyGPT Trading Signal (주식 거래 신호 모델) |
+| :--- | :--- | :--- |
+| **태스크 유형 (Task)** | **생성 모델 (Generative LM)**<br>주어진 컨텍스트 뒤에 올 다음 문자(Char) 생성 | **분류 모델 (Sequence Classification)**<br>최근 $T$일의 흐름을 읽고 미래 수익률 신호 분류 |
+| **입력 데이터 (Domain)** | **자연어 텍스트** (Shakespeare) | **이산화된 시장 상태 토큰** (`T_UP\|M5_POS\|...`) |
+| **어휘 사전 크기 (Vocab Size)** | **65** (알파벳, 문장부호, 공백 등 고정) | **약 1,000~1,200+** (시장 상태 조합에 따라 유동적) |
+| **출력 차원 (Output Shape)** | `(Batch, Sequence, Vocab_Size)` | `(Batch, Num_Classes = 3)` (SELL / HOLD / BUY) |
+| **출력 추출 및 손실 계산** | 시퀀스 내 **모든 위치**의 다음 토큰 예측 오차 합산<br>(Loss computed over all time-steps) | 시퀀스의 **마지막 시점 은닉 상태** `h[:, -1, :]`만 추출하여 분류기에 입력 후 단일 손실 계산 |
+| **평가 및 검증 분할** | **랜덤 분할 (Random Split)**<br>텍스트 문장의 순서와 무관하게 데이터셋 분할 | **시계열 분할 (Time-series Split)**<br>미래 정보 누수(Lookahead Bias) 차단을 위해 과거/미래로 엄격히 분할 |
+| **출력 디코딩 / 예측 제어** | **확률적 샘플링** (Temperature, Top-k 등 적용)<br>다양하고 자연어스러운 문장을 생성하기 위함 | **Confidence Guard (확신도 가드)**<br>예측 확률이 설정한 임계값 미만일 시 HOLD로 보수화 |
+| **손실 함수 보정** | **일반 Cross-Entropy** | **Class-weighted Cross-Entropy**<br>지배적인 HOLD 신호로 인한 편향 학습(Bias) 완화 |
+| **모델 규모 (하이퍼파라미터)** | `emb_dim = 128`, `num_heads = 4`<br>`num_layers = 4`, `dropout = 0.1` | `emb_dim = 96`, `num_heads = 4`<br>`num_layers = 3`, `dropout = 0.15` |
 
 ---
 
@@ -140,7 +219,37 @@ flowchart TD
    * Sharpe Ratio (샤프 지수)
    * 단순 보유 전략 (Buy & Hold) 대비 초과 수익률(Alpha) 비교
 
+### 4. 백테스팅 실행 결과 (Simulation Results)
+
+`tiny_GPT_trading_signal_real.ipynb` 모델을 활용하여 삼성전자 일봉 데이터에 대해 백테스팅을 수행한 결과는 다음과 같습니다. (학습 모델의 무작위성으로 인해 세부 수치는 매 실행마다 미세하게 다를 수 있습니다.)
+
+#### ① 전체 기간 시뮬레이션 결과 (In-Sample & Out-of-Sample)
+* **기간**: 2006-11-28 ~ 2026-05-21
+* **조건**: Confidence Guard (확신도 0.45 이상 & 정규화 엔트로피 0.95 이하) 필터링 적용
+
+| 전략 구분 | 누적 수익률 | CAGR (연평균 성장률) | MDD (최대 낙폭) | 거래 횟수 |
+| :--- | :---: | :---: | :---: | :---: |
+| **단순 보유 (Buy & Hold)** | 3,278.92% | 19.81% | -47.34% | - |
+| **TinyGPT 전략 (필터링 적용)** | **55,671.02%** | **38.36%** | **-42.96%** | 매수 2,070회 / 매도 449회 |
+
+![전체 기간 백테스팅 누적 수익률](backtest_full.png)
+
+#### ② 검증 기간 시뮬레이션 결과 (Out-of-Sample)
+* **기간**: 2022-06-14 ~ 2026-05-21 (최근 20% 아웃오브샘플 데이터)
+* **조건**: 완화된 필터 조건 적용, **왕복 매매당 0.25%**의 현실적인 거래 수수료 및 슬리피지 차감 반영
+
+| 전략 구분 | 누적 수익률 | CAGR (연평균 성장률) | MDD (최대 낙폭) | 거래 횟수 |
+| :--- | :---: | :---: | :---: | :---: |
+| **단순 보유 (Buy & Hold)** | **426.59%** | **52.54%** | **-42.85%** | - |
+| **TinyGPT 전략 (수수료 반영)** | 127.34% | 23.21% | -44.95% | 매수 408회 / 매도 68회 |
+
+![검증 기간(OOS) 백테스팅 누적 수익률](backtest_oos.png)
+
+> [!NOTE]
+> 전체 기간(In-Sample 포함)에서는 TinyGPT 전략이 압도적인 초과 수익(Alpha)을 달성했으나, 실거래 수수료가 적용된 최근 아웃오브샘플(Out-of-Sample) 검증 기간에서는 잦은 포지션 변경에 따른 거래 비용(누적 수수료)으로 인해 단순 보유 전략 대비 다소 낮은 수익률을 기록하였습니다. 이는 실전 운용 시 거래 빈도를 억제하는 필터 설정 및 수수료 최적화가 필수적임을 시사합니다.
+
 ---
+
 
 ## ⚙️ 실행 및 운영 방법
 
