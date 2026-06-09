@@ -127,34 +127,34 @@ flowchart TD
 ### 1) 상세 모델 구조 및 수학적 연산 흐름
 
 #### ① 토큰 및 위치 임베딩 (Token & Position Embeddings)
-* **입력 시퀀스**: $x = [x_1, x_2, \dots, x_T] \in \mathbb{R}^{B 	imes T}$ (여기서 $T = 	ext{block\_size} = 64$는 최근 64영업일의 시장 상태 토큰들입니다.)
-* **토큰 임베딩**: `nn.Embedding(vocab_size, emb_dim)`을 거쳐 각 이산 시장 상태 토큰을 $C(=96)$ 차원 벡터로 매핑합니다: $E_{tok}(x) \in \mathbb{R}^{B 	imes T 	imes C}$
-* **위치 임베딩**: 토큰의 시간적 순서 정보를 보존하기 위해 절대적 위치 임베딩 벡터를 더합니다: $E_{pos}(p) \in \mathbb{R}^{T 	imes C}$
+* **입력 시퀀스**: $x = [x_1, x_2, \dots, x_T] \in \mathbb{R}^{B \times T}$ (여기서 $T = \text{block\_size} = 64$는 최근 64영업일의 시장 상태 토큰들입니다.)
+* **토큰 임베딩**: `nn.Embedding(vocab_size, emb_dim)`을 거쳐 각 이산 시장 상태 토큰을 $C(=96)$ 차원 벡터로 매핑합니다: $E_{tok}(x) \in \mathbb{R}^{B \times T \times C}$
+* **위치 임베딩**: 토큰의 시간적 순서 정보를 보존하기 위해 절대적 위치 임베딩 벡터를 더합니다: $E_{pos}(p) \in \mathbb{R}^{T \times C}$
 * **합산**: 두 임베딩의 합이 최초의 숨겨진 특징 벡터 $h_0$가 됩니다:
-  $$h_0 = E_{tok}(x) + E_{pos}(p) \in \mathbb{R}^{B 	imes T 	imes C}$$
+  $$h_0 = E_{tok}(x) + E_{pos}(p) \in \mathbb{R}^{B \times T \times C}$$
 
 #### ② 인과적 멀티헤드 어텐션 (Causal Multi-Head Attention)
-* 각 블록 내의 어텐션 레이어는 $h \in \mathbb{R}^{B 	imes T 	imes C}$를 받아 쿼리($Q$), 키($K$), 값($V$)으로 선형 투영합니다:
-  $$Q = h W_Q, \quad K = h W_K, \quad V = h W_V \quad (W_Q, W_K, W_V \in \mathbb{R}^{C 	imes C})$$
+* 각 블록 내의 어텐션 레이어는 $h \in \mathbb{R}^{B \times T \times C}$를 받아 쿼리($Q$), 키($K$), 값($V$)으로 선형 투영합니다:
+  $$Q = h W_Q, \quad K = h W_K, \quad V = h W_V \quad (W_Q, W_K, W_V \in \mathbb{R}^{C \times C})$$
 * 설정한 헤드 수($h_{num} = 4$)에 따라 채널을 분할하고 병렬적으로 scaled dot-product 어텐션을 계산합니다:
-  $$	ext{Attention}(Q, K, V) = 	ext{softmax}\left(rac{Q K^T}{\sqrt{d_k}} + Might) V$$
+  $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}} + M\right) V$$
   여기서 $d_k = C / h_{num} = 24$ 이며, $M$은 미래 시점 정보를 참조하지 못하게 차단하는 **인과적 마스크(Causal Mask)**입니다:
-  $$M_{ij} = egin{cases} 0 & (i \ge j) \ -\infty & (i < j) \end{cases}$$
-* 마스킹된 영역은 $	ext{softmax}$ 연산 시 가중치가 0이 되므로 정보가 미래에서 과거로 역류하는 것을 수학적으로 차단하여 미래 정보 누수(Lookahead Bias)를 방지합니다.
-* 어텐션 결과를 다시 채널 방향으로 접합(Concatenate) 후 최종 출력 선형 투영 $W_O \in \mathbb{R}^{C 	imes C}$를 통과시킵니다.
+  $$M_{ij} = \begin{cases} 0 & (i \ge j) \ -\infty & (i < j) \end{cases}$$
+* 마스킹된 영역은 $\text{softmax}$ 연산 시 가중치가 0이 되므로 정보가 미래에서 과거로 역류하는 것을 수학적으로 차단하여 미래 정보 누수(Lookahead Bias)를 방지합니다.
+* 어텐션 결과를 다시 채널 방향으로 접합(Concatenate) 후 최종 출력 선형 투영 $W_O \in \mathbb{R}^{C \times C}$를 통과시킵니다.
 
 #### ③ Pre-LN 트랜스포머 블록 구조 (Pre-LN Transformer Blocks)
 * 입력 벡터가 블록을 통과할 때 레이어 정규화(LayerNorm)를 잔차 연결(Residual Connection) 직전에 수행하는 Pre-LN 방식을 적용하여 심층 신경망의 안정적인 학습을 보장합니다:
-  $$	ilde{h}_l = h_{l-1} + 	ext{MHA}(	ext{LN}(h_{l-1}))$$
-  $$h_l = 	ilde{h}_l + 	ext{FFWD}(	ext{LN}(	ilde{h}_l))$$
+  $$\tilde{h}_l = h_{l-1} + \text{MHA}(\text{LN}(h_{l-1}))$$
+  $$h_l = \tilde{h}_l + \text{FFWD}(\text{LN}(\tilde{h}_l))$$
 * 여기서 FeedForward 네트워크는 비선형 특징 채널 변환을 수행합니다:
-  $$	ext{FFWD}(y) = 	ext{ReLU}(y W_1 + b_1) W_2 + b_2 \quad (W_1 \in \mathbb{R}^{C 	imes 4C}, W_2 \in \mathbb{R}^{4C 	imes C})$$
+  $$\text{FFWD}(y) = \text{ReLU}(y W_1 + b_1) W_2 + b_2 \quad (W_1 \in \mathbb{R}^{C \times 4C}, W_2 \in \mathbb{R}^{4C \times C})$$
 
 #### ④ 분류 헤드 및 최종 신호 매핑 (Classification Head)
 * **정보 압축**: 시퀀스 전체 위치의 특징을 활용하는 자연어 생성과 달리, 거래 예측에서는 64영업일 동안의 정보가 누적·압축된 **마지막 시점(Last Time-step)의 은닉 상태**만을 추출합니다:
-  $$h_{last} = h_{L}[:, -1, :] \in \mathbb{R}^{B 	imes C}$$
+  $$h_{last} = h_{L}[:, -1, :] \in \mathbb{R}^{B \times C}$$
 * **선형 매핑**: $h_{last}$를 선형 레이어(`nn.Linear`)에 통과시켜 최종 3가지 거래 신호의 로그 확률(Logits)을 구합니다:
-  $$	ext{logits} = h_{last} W_{class} + b_{class} \in \mathbb{R}^{B 	imes 3} \quad (W_{class} \in \mathbb{R}^{C 	imes 3})$$
+  $$\text{logits} = h_{last} W_{class} + b_{class} \in \mathbb{R}^{B \times 3} \quad (W_{class} \in \mathbb{R}^{C \times 3})$$
 * 이 Logits에 소프트맥스를 씌워 SELL (0), HOLD (1), BUY (2)에 대한 확률을 구합니다.
 
 ---
@@ -162,7 +162,7 @@ flowchart TD
 ### 2) 모델 구성 클래스
 * **[Head](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L217-L247)**: 단일 인과적(Causal) 어텐션 헤드로, 미래 정보를 참조할 수 없도록 하삼각 마스킹(`tril`)을 적용합니다.
 * **[MultiHeadAttention](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L249-L266)**: 여러 개의 어텐션 헤드를 병렬 연산하고 합친 뒤 선형 투영합니다.
-* **[FeedForward](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L268-L282)**: $W_1 x + b_1 ightarrow 	ext{ReLU} ightarrow W_2 x + b_2$ 구조의 MLP 채널 정제망입니다.
+* **[FeedForward](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L268-L282)**: $W_1 x + b_1 \rightarrow \text{ReLU} \rightarrow W_2 x + b_2$ 구조의 MLP 채널 정제망입니다.
 * **[Block](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L284-L298)**: Pre-LN 기반의 레이어 정규화와 어텐션, FFWD 및 잔차 연결을 조합한 디코더 블록입니다.
 * **[TinyGPTTradingSignal](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb#L300-L337)**: 위의 요소들을 취합하여 토큰/위치 임베딩을 거쳐 시퀀스 특징을 만들고, 시퀀스의 마지막 시점 은닉 벡터(`h[:, -1, :]`)를 추출하여 3개의 출력 신호 점수로 매핑합니다.
 
