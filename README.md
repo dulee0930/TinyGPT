@@ -1,6 +1,6 @@
 # TinyGPT Stock Trading Signal Model (Samsung Electronics)
 
-이 프로젝트는 Karpathy의 `makemore` 시리즈 중 **GPT-2 스타일의 Transformer Decoder 아키텍처(Notebook 06)**를 차용하여, 주식 시장(삼성전자)의 일봉 데이터를 분석하고 최적의 **매수(BUY) / 관망(HOLD) / 매도(SELL)** 신호를 예측하는 딥러닝 프로젝트입니다.
+이 프로젝트의 시그널 생성은 [TinyGPT 레포지토리](https://github.com/dulee0930/TinyGPT)의 모델 구조(Karpathy의 `makemore` 시리즈 중 **GPT-2 스타일의 Transformer Decoder 아키텍처 - Notebook 06**)를 기반으로 작동합니다. 주식 시장(삼성전자)의 일봉 데이터를 분석하고 최적의 **매수(BUY) / 관망(HOLD) / 매도(SELL)** 신호를 예측하는 딥러닝 프로젝트입니다.
 
 이 프로젝트의 구현 코드는 [tiny_GPT_trading_signal_real.ipynb](file:///c:/Users/dulee0930/Desktop/2026-1/TinyGPT/tiny_GPT_trading_signal_real.ipynb)에 담겨 있습니다.
 
