@@ -202,7 +202,7 @@ graph TD
 * **입력 시퀀스 (Input Context)**
   최근 $T$ 영업일의 이산 시장 상태 토큰 시퀀스는 다음과 같이 나타낼 수 있습니다:
 
-  $$x = [x_1, x_2, \dots, x_T] \in \mathbb{R}^{B \times T}$$
+$$x = [x_1, x_2, \dots, x_T] \in \mathbb{R}^{B \times T}$$
 
   * $B$: 배치 크기 (Batch Size)
   * $T$: 컨텍스트 창 크기 (시퀀스 길이, `block_size` = 64)
@@ -210,19 +210,19 @@ graph TD
 * **토큰 임베딩 (Token Embedding)**
   `nn.Embedding`을 통해 고유 토큰들을 밀집 벡터로 변환합니다:
 
-  $$E_{\text{tok}}(x) \in \mathbb{R}^{B \times T \times C}$$
+$$E_{\text{tok}}(x) \in \mathbb{R}^{B \times T \times C}$$
 
   * $C$: 모델의 임베딩 차원 (`emb_dim` = 96)
 
 * **위치 임베딩 (Position Embedding)**
   토큰의 시간적 순서 정보를 제공하기 위해 절대 위치 임베딩 벡터를 더해줍니다:
 
-  $$E_{\text{pos}}(p) \in \mathbb{R}^{T \times C}$$
+$$E_{\text{pos}}(p) \in \mathbb{R}^{T \times C}$$
 
 * **합산 (Summation)**
   두 임베딩의 합이 트랜스포머 블록에 전송되는 최초의 입력 벡터 $h_0$가 됩니다:
 
-  $$h_0 = E_{\text{tok}}(x) + E_{\text{pos}}(p) \in \mathbb{R}^{B \times T \times C}$$
+$$h_0 = E_{\text{tok}}(x) + E_{\text{pos}}(p) \in \mathbb{R}^{B \times T \times C}$$
 
 ---
 
@@ -233,23 +233,25 @@ graph TD
 * **선형 투영 (Linear Projection)**
   입력 특징 $h \in \mathbb{R}^{B \times T \times C}$를 사용하여 쿼리($Q$), 키($K$), 값($V$) 벡터를 도출합니다:
 
-  $$Q = h W_Q, \quad K = h W_K, \quad V = h W_V$$
+$$Q = h W_Q, \quad K = h W_K, \quad V = h W_V$$
 
   * $W_Q, W_K, W_V \in \mathbb{R}^{C \times C}$: 선형 투영 가중치 파라미터
 
 * **인과적 마스크 적용 및 어텐션 계산 (Causal Masked Attention)**
   설정된 헤드 수(`num_heads` = 4)에 따라 분할하여 계산하며, 각 헤드 차원 $d_k = C / h_{\text{num}} = 24$를 기준으로 scaled dot-product 어텐션을 수행합니다. 이때 미래 시점을 참조하는 Lookahead Bias를 차단하기 위해 **인과적 마스크(Causal Mask)** $M$을 적용합니다:
 
-  $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}} + M\right) V$$
+$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}} + M\right) V$$
 
-  $$\text{여기서 } M_{ij} = \begin{cases} 0 & (i \ge j) \\ -\infty & (i < j) \end{cases}$$
+  여기서 $M_{ij}$는 다음과 같이 정의됩니다:
 
-  * 마스킹된 영역($i < j$)은 소프트맥스 연산 시 가중치가 0이 되므로 정보가 미래에서 과거로 역류하는 것을 수학적으로 완전히 차단합니다.
+$$M_{ij} = \begin{cases} 0 & (i \ge j) \\ -\infty & (i < j) \end{cases}$$
+
+  마스킹된 영역($i < j$)은 소프트맥스 연산 시 가중치가 0이 되므로 정보가 미래에서 과거로 역류하는 것을 수학적으로 완전히 차단합니다.
 
 * **출력 투영 (Output Projection)**
   병렬적으로 연산된 각 헤드의 결과를 결합한 후, 최종 선형 레이어를 통과시킵니다:
 
-  $$\text{Output} = \text{Concat}(\text{head}_1, \dots, \text{head}_4) W_O$$
+$$\text{Output} = \text{Concat}(\text{head}_1, \dots, \text{head}_4) W_O$$
 
   * $W_O \in \mathbb{R}^{C \times C}$: 출력 선형 투영 가중치
 
@@ -261,16 +263,16 @@ graph TD
 
 * **멀티헤드 어텐션 블록 (Causal MHA Block)**
 
-  $$\tilde{h}_l = h_{l-1} + \text{MHA}(\text{LN}(h_{l-1}))$$
+$$\tilde{h}_l = h_{l-1} + \text{MHA}(\text{LN}(h_{l-1}))$$
 
   * $\text{LN}$: 레이어 정규화 (LayerNorm)
   * $\text{MHA}$: Causal Multi-Head Attention
 
 * **피드포워드 네트워크 블록 (FFWD Block)**
 
-  $$h_l = \tilde{h}_l + \text{FFWD}(\text{LN}(\tilde{h}_l))$$
+$$h_l = \tilde{h}_l + \text{FFWD}(\text{LN}(\tilde{h}_l))$$
 
-  $$\text{FFWD}(y) = \text{ReLU}(y W_1 + b_1) W_2 + b_2$$
+$$\text{FFWD}(y) = \text{ReLU}(y W_1 + b_1) W_2 + b_2$$
 
   * $W_1 \in \mathbb{R}^{C \times 4C}$, $b_1 \in \mathbb{R}^{4C}$
   * $W_2 \in \mathbb{R}^{4C \times C}$, $b_2 \in \mathbb{R}^{C}$
@@ -282,21 +284,21 @@ graph TD
 * **정보 압축 (Extract Last Hidden State)**
   자연어 생성 모델과 달리, 거래 예측 모델은 마지막 영업일 시점(Last Time-step)의 압축된 정보만을 사용합니다:
 
-  $$h_{\text{last}} = h_L[:, -1, :] \in \mathbb{R}^{B \times C}$$
+$$h_{\text{last}} = h_L[:, -1, :] \in \mathbb{R}^{B \times C}$$
 
   * $L$: 트랜스포머 레이어 스택 깊이 (3)
 
 * **로그 확률 계산 (Logits Projection)**
   압축된 은닉 상태 $h_{\text{last}}$를 분류용 선형 레이어(`nn.Linear`)에 입력하여 최종 3가지 거래 신호에 대한 스코어를 연산합니다:
 
-  $$\text{logits} = h_{\text{last}} W_{\text{class}} + b_{\text{class}} \in \mathbb{R}^{B \times 3}$$
+$$\text{logits} = h_{\text{last}} W_{\text{class}} + b_{\text{class}} \in \mathbb{R}^{B \times 3}$$
 
   * $W_{\text{class}} \in \mathbb{R}^{C \times 3}$, $b_{\text{class}} \in \mathbb{R}^3$
 
 * **확률 도출**
   Logits에 소프트맥스를 취해 최종 거래 행동 확률을 계산합니다:
 
-  $$\text{probabilities} = \text{softmax}(\text{logits})$$
+$$\text{probabilities} = \text{softmax}(\text{logits})$$
 
   * 클래스 매핑: SELL (0), HOLD (1), BUY (2)
 
